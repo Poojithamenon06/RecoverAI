@@ -45,6 +45,111 @@ function App() {
   const [webhookLoading, setWebhookLoading] = useState(false);
   const [webhookError, setWebhookError] = useState("");
 
+  // UI-driven live recovery case creation
+  const [showRecoveryForm, setShowRecoveryForm] = useState(false);
+  const [recoverySubmitting, setRecoverySubmitting] = useState(false);
+  const [recoveryResult, setRecoveryResult] = useState(null);
+  const [recoveryForm, setRecoveryForm] = useState({
+    transactionId: "",
+    customerId: "",
+    amount: 15000,
+    currency: "INR",
+    paymentMethod: "netbanking",
+    failureReason: "network_error",
+    attemptNumber: 1,
+    previousSuccessCount: 5,
+    previousFailureCount: 1,
+    averageTransactionAmount: 12000,
+    customerLifetimeValue: 85000,
+    daysSinceLastPurchase: 10,
+    purchaseFrequency: 4,
+    subscriptionStatus: "active",
+    deviceType: "mobile",
+    country: "IN",
+    hour: new Date().getHours(),
+    dayOfWeek: new Date().getDay()
+  });
+
+  const openRecoveryForm = () => {
+    const now = new Date();
+
+    setRecoveryResult(null);
+    setRecoveryForm({
+      transactionId: `TXN-UI-${Date.now()}`,
+      customerId: `CUST-UI-${Date.now()}`,
+      amount: 15000,
+      currency: "INR",
+      paymentMethod: "netbanking",
+      failureReason: "network_error",
+      attemptNumber: 1,
+      previousSuccessCount: 5,
+      previousFailureCount: 1,
+      averageTransactionAmount: 12000,
+      customerLifetimeValue: 85000,
+      daysSinceLastPurchase: 10,
+      purchaseFrequency: 4,
+      subscriptionStatus: "active",
+      deviceType: "mobile",
+      country: "IN",
+      hour: now.getHours(),
+      dayOfWeek: now.getDay()
+    });
+    setShowRecoveryForm(true);
+  };
+
+  const submitRecoveryCase = async (e) => {
+    e.preventDefault();
+
+    try {
+      setRecoverySubmitting(true);
+      setRecoveryResult(null);
+
+      const response = await fetch(
+        "http://localhost:5000/api/recovery/test",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            ...recoveryForm,
+            amount: Number(recoveryForm.amount),
+            attemptNumber: Number(recoveryForm.attemptNumber),
+            previousSuccessCount: Number(recoveryForm.previousSuccessCount),
+            previousFailureCount: Number(recoveryForm.previousFailureCount),
+            averageTransactionAmount: Number(recoveryForm.averageTransactionAmount),
+            customerLifetimeValue: Number(recoveryForm.customerLifetimeValue),
+            daysSinceLastPurchase: Number(recoveryForm.daysSinceLastPurchase),
+            purchaseFrequency: Number(recoveryForm.purchaseFrequency),
+            hour: Number(recoveryForm.hour),
+            dayOfWeek: Number(recoveryForm.dayOfWeek)
+          })
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(
+          result.message || result.error || "Recovery request failed"
+        );
+      }
+
+      setRecoveryResult(result.data || result);
+      showToast("Recovery case created successfully");
+
+      // Refresh live pages when the user navigates to them.
+      setPage("Recovery Cases");
+    } catch (error) {
+      console.error("UI Recovery Error:", error);
+      setRecoveryResult({
+        error: error.message || "Unable to create recovery case"
+      });
+    } finally {
+      setRecoverySubmitting(false);
+    }
+  };
+
   const nav = [
     ["Dashboard", LayoutDashboard],
     ["Recovery Cases", Activity],
@@ -170,7 +275,10 @@ function App() {
             item.createdAt,
 
           updatedAt:
-            item.updatedAt
+            item.updatedAt,
+
+          paymentLinkUrl:
+            item.paymentLinkUrl || ""
         }));
 
         setLiveCases(normalizedCases);
@@ -396,6 +504,7 @@ function App() {
   dashboardStats={dashboardStats}
   dashboardError={dashboardError}
   liveCases={liveCases}
+  onRunLiveRecovery={openRecoveryForm}
 />
       }
 
@@ -443,6 +552,22 @@ function App() {
         <CheckCircle2 size={19} />
         {toast}
       </div>
+    }
+
+    {showRecoveryForm &&
+      <RecoveryModal
+        form={recoveryForm}
+        setForm={setRecoveryForm}
+        submitting={recoverySubmitting}
+        result={recoveryResult}
+        onSubmit={submitRecoveryCase}
+        onClose={() => {
+          if (!recoverySubmitting) {
+            setShowRecoveryForm(false);
+            setRecoveryResult(null);
+          }
+        }}
+      />
     }
   </div>;
 }
@@ -721,7 +846,8 @@ function Dashboard({
   onToast,
   dashboardStats,
   dashboardError,
-  liveCases
+  liveCases,
+  onRunLiveRecovery
 }) {
 
   // Keep original UI fallback values.
@@ -760,9 +886,7 @@ function Dashboard({
 
       <button
         className="primary"
-        onClick={() =>
-          onToast("Live recovery pipeline is ready")
-        }
+        onClick={onRunLiveRecovery}
       >
         <Zap size={18} />
         Run live recovery
@@ -1162,6 +1286,279 @@ function Dashboard({
 }
 
 
+
+function RecoveryModal({
+  form,
+  setForm,
+  submitting,
+  result,
+  onSubmit,
+  onClose
+}) {
+  const update = (key, value) => {
+    setForm(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(15, 23, 42, .48)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        overflowY: "auto"
+      }}
+    >
+      <div
+        style={{
+          width: "min(900px, 100%)",
+          maxHeight: "92vh",
+          overflowY: "auto",
+          background: "#fff",
+          borderRadius: 18,
+          boxShadow: "0 25px 70px rgba(15, 23, 42, .25)",
+          padding: 24
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 16,
+            marginBottom: 20
+          }}
+        >
+          <div>
+            <div className="eyebrow">
+              <Sparkles size={15} />
+              LIVE RECOVERY
+            </div>
+            <h2 style={{ margin: "8px 0 5px" }}>
+              Create Recovery Case
+            </h2>
+            <p style={{ margin: 0, color: "#657087" }}>
+              Enter a failed payment scenario and let RecoverAI score,
+              diagnose, gate and execute the permitted recovery action.
+            </p>
+          </div>
+
+          <button
+            className="iconBtn"
+            onClick={onClose}
+            disabled={submitting}
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 16
+            }}
+          >
+            {[
+              ["transactionId", "Transaction ID", "text"],
+              ["customerId", "Customer ID", "text"],
+              ["amount", "Amount (₹)", "number"],
+              ["averageTransactionAmount", "Average Transaction (₹)", "number"],
+              ["customerLifetimeValue", "Customer Lifetime Value (₹)", "number"],
+              ["previousSuccessCount", "Previous Successes", "number"],
+              ["previousFailureCount", "Previous Failures", "number"],
+              ["daysSinceLastPurchase", "Days Since Last Purchase", "number"],
+              ["purchaseFrequency", "Purchase Frequency", "number"],
+              ["attemptNumber", "Attempt Number", "number"],
+              ["hour", "Hour (0–23)", "number"]
+            ].map(([key, label, type]) => (
+              <label key={key} style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                <span style={{ fontWeight: 600, fontSize: 13 }}>{label}</span>
+                <input
+                  type={type}
+                  value={form[key]}
+                  onChange={e => update(key, e.target.value)}
+                  required
+                  min={type === "number" ? 0 : undefined}
+                  max={key === "hour" ? 23 : undefined}
+                />
+              </label>
+            ))}
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Payment Method</span>
+              <select
+                value={form.paymentMethod}
+                onChange={e => update("paymentMethod", e.target.value)}
+              >
+                <option value="netbanking">Netbanking</option>
+                <option value="card">Card</option>
+                <option value="upi">UPI</option>
+                <option value="wallet">Wallet</option>
+              </select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Failure Reason</span>
+              <select
+                value={form.failureReason}
+                onChange={e => update("failureReason", e.target.value)}
+              >
+                <option value="network_error">Network Error</option>
+                <option value="bank_timeout">Bank Timeout</option>
+                <option value="incorrect_otp">Incorrect OTP</option>
+                <option value="insufficient_funds">Insufficient Funds</option>
+                <option value="issuer_decline">Issuer Decline</option>
+                <option value="expired_card">Expired Card</option>
+              </select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Subscription</span>
+              <select
+                value={form.subscriptionStatus}
+                onChange={e => update("subscriptionStatus", e.target.value)}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Device</span>
+              <select
+                value={form.deviceType}
+                onChange={e => update("deviceType", e.target.value)}
+              >
+                <option value="mobile">Mobile</option>
+                <option value="desktop">Desktop</option>
+                <option value="tablet">Tablet</option>
+              </select>
+            </label>
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              padding: "12px 14px",
+              borderRadius: 12,
+              background: "#f7f8fc",
+              color: "#657087",
+              fontSize: 13
+            }}
+          >
+            Tip: use <b>₹15,000 + network_error</b> to demonstrate the
+            Payment Link recovery flow. Use <b>₹75,000</b> to demonstrate
+            the high-value policy escalation.
+          </div>
+
+          {result?.error &&
+            <div
+              className="emptyNote"
+              style={{ marginTop: 16 }}
+            >
+              {result.error}
+            </div>
+          }
+
+          {result && !result.error &&
+            <div
+              style={{
+                marginTop: 18,
+                padding: 16,
+                borderRadius: 14,
+                background: "#f0fdf8",
+                border: "1px solid #c9f1df"
+              }}
+            >
+              <b>Recovery case created</b>
+              <div style={{ marginTop: 8, display: "grid", gap: 5, color: "#465166" }}>
+                <span>Case: <b>{result.caseId || "—"}</b></span>
+                <span>
+                  Recovery probability:{" "}
+                  <b>
+                    {typeof result.recoveryProbability === "number"
+                      ? `${(result.recoveryProbability * 100).toFixed(1)}%`
+                      : "—"}
+                  </b>
+                </span>
+                <span>Diagnosis: <b>{result.aiDiagnosis || "—"}</b></span>
+                <span>Recommended action: <b>{result.recommendedAction || "—"}</b></span>
+                <span>Policy: <b>{result.policyDecision || result.policy?.decision || "—"}</b></span>
+              </div>
+
+              {result.paymentLinkUrl &&
+                <div style={{ marginTop: 14 }}>
+                  <a
+                    href={result.paymentLinkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="primary"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
+                      textDecoration: "none"
+                    }}
+                  >
+                    <Link2 size={17} />
+                    Open Razorpay Payment Link
+                  </a>
+                </div>
+              }
+
+              {result.recommendedAction === "escalate" &&
+                <div style={{ marginTop: 12, color: "#92400e" }}>
+                  No payment link was created because the policy engine
+                  escalated this high-value case for review.
+                </div>
+              }
+            </div>
+          }
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+              marginTop: 22
+            }}
+          >
+            <button
+              type="button"
+              className="secondary"
+              onClick={onClose}
+              disabled={submitting}
+            >
+              Close
+            </button>
+
+            <button
+              type="submit"
+              className="primary"
+              disabled={submitting}
+            >
+              {submitting
+                ? "Running recovery..."
+                : "Analyze & Recover"}
+              {!submitting && <ArrowUpRight size={17} />}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function CasesPage({
   filteredCases,
   query,
@@ -1302,7 +1699,21 @@ function CaseTable({ rows }) {
             </td>
 
             <td>
-              {c.action}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span>{c.action}</span>
+                {c.paymentLinkUrl &&
+                  c.status !== "recovered" &&
+                  <a
+                    href={c.paymentLinkUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="textBtn"
+                    style={{ textDecoration: "none" }}
+                  >
+                    Open link
+                  </a>
+                }
+              </div>
             </td>
 
             <td>
