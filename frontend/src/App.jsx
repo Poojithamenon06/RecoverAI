@@ -11,7 +11,7 @@ import {
   PieChart, Pie, ResponsiveContainer, Tooltip, XAxis, YAxis
 } from "recharts";
 import { actions, cases, customers, failureMix, revenueTrend } from "./data";
-
+const API_URL = import.meta.env.VITE_API_URL;
 const money = (n) => `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 const chartColors = ["#6257F5", "#16B889", "#F59E0B", "#3B82F6", "#EC4899", "#8B5CF6"];
@@ -105,7 +105,7 @@ function App() {
       setRecoveryResult(null);
 
       const response = await fetch(
-        "http://localhost:5000/api/recovery/test",
+        `${API_URL}/api/recovery/test`,
         {
           method: "POST",
           headers: {
@@ -177,7 +177,7 @@ function App() {
         setDashboardError("");
 
         const response = await fetch(
-          "http://localhost:5000/api/dashboard/stats"
+          `${API_URL}/api/dashboard/stats`
         );
 
         if (!response.ok) {
@@ -218,7 +218,7 @@ function App() {
         setCasesError("");
 
         const response = await fetch(
-          "http://localhost:5000/api/recovery/cases"
+          `${API_URL}/api/recovery/cases`
         );
 
         if (!response.ok) {
@@ -312,7 +312,7 @@ function App() {
         setCustomersError("");
 
         const response = await fetch(
-          "http://localhost:5000/api/customers"
+          `${API_URL}/api/customers`
         );
 
         if (!response.ok) {
@@ -353,7 +353,7 @@ function App() {
         setWebhookError("");
 
         const response = await fetch(
-          "http://localhost:5000/api/webhooks/events"
+          `${API_URL}/api/webhooks/events`
         );
 
         if (!response.ok) {
